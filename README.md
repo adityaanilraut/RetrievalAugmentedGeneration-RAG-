@@ -4,17 +4,85 @@ Backend-only RAG: ingest PDF/TXT/Markdown, chunk, embed with OpenAI, store vecto
 
 ## Architecture
 
+The system has three cooperating paths: **indexing** (offline or on demand), **query-time RAG** (retrieve then generate), and **optional BEIR benchmarks** (dense retrieval scored against qrels; no database). Everything configurable lives in environment variables and `rag_system/config.py`; the API and CLI are thin wrappers over the same core functions.
+
+### Layers and packages
+
+| Layer | Role | Code |
+|-------|------|------|
+| **Interfaces** | HTTP (`FastAPI`) and **CLI** (`rag …`, argparse) | `rag_system/api/main.py`, `rag_system/cli.py` |
+| **Orchestration** | Wire ingest → DB; query → retrieve → generate | Same files call `core.*` and `db.pg` |
+| **Core** | Text extraction, chunking, embeddings, retrieval, LLM prompts | `rag_system/core/` |
+| **Persistence** | psycopg3 + **pgvector**; schema and HNSW index | `rag_system/db/` |
+| **Contracts** | Pydantic request/response models | `rag_system/models.py` |
+| **Evaluation** | BEIR datasets, in-memory cosine rank, metrics | `rag_system/evaluation/` |
+
+On startup, the API **lifespan** hook runs `init_db()` so tables and indexes exist before the first request.
+
+### Indexing pipeline (ingest)
+
+Documents are read from disk, split into overlapping segments, embedded with the same model used at query time, and stored **per file**: re-ingesting a path **replaces** that document’s rows (`DELETE … WHERE doc_id = …` then `INSERT`).
+
 ```mermaid
-flowchart LR
-  Docs[Local documents] --> Ingest[Extract and chunk]
-  Ingest --> Embed[OpenAI embeddings]
-  Embed --> PG[(PostgreSQL pgvector)]
-  Q[Question] --> QEmb[Query embedding]
-  QEmb --> Search[Top-k similarity]
-  PG --> Search
-  Search --> Gen[OpenAI chat with sources]
-  Gen --> Out[Answer plus citations]
+flowchart TB
+  subgraph sources [Sources]
+    PDF[PDF via pypdf]
+    TXT[TXT / Markdown]
+  end
+  subgraph walk [Discovery]
+    R[Root path file or directory]
+    R --> COLLECT[Recursive .pdf .txt .md]
+  end
+  subgraph text [Text processing]
+    COLLECT --> EXTRACT[extract_text]
+    PDF --> EXTRACT
+    TXT --> EXTRACT
+    EXTRACT --> NORM[Whitespace normalize]
+    NORM --> CHUNK[chunk_text: size 1200, overlap 200]
+  end
+  subgraph emb [Embeddings]
+    CHUNK --> BATCH[embed_texts: batches of 64]
+    BATCH --> OAI_E[OpenAI embeddings API]
+  end
+  subgraph store [PostgreSQL]
+    OAI_E --> UPSERT[Delete prior chunks for doc_id]
+    UPSERT --> INS[INSERT chunk_id, content, vector]
+    INS --> TBL[(document_chunks)]
+    INS --> HNSW[HNSW index: cosine]
+  end
 ```
+
+**Details:** `chunk_id` is a new UUID per chunk; `doc_id` is the resolved absolute file path so updates are idempotent per source file. Vectors are **1536** dimensions by default (`text-embedding-3-small`); the schema fixes `vector(1536)`—change both model and `schema.sql` if you switch embedding size.
+
+### Query pipeline (RAG)
+
+Retrieval uses pgvector’s **cosine distance** operator (`<=>`): smaller distance means closer vectors. The code maps distance to a **score** as `1 - distance` for reporting. Generation uses a **single chat completion** with labeled sources `[S1]`, `[S2]`, … and asks the model to cite with the same labels; citations are then resolved back to `chunk_id` and file paths.
+
+```mermaid
+flowchart TB
+  Q[User question]
+  Q --> QEMB[embed_query → same model as corpus]
+  QEMB --> VEC[Query vector]
+  VEC --> SQL["ORDER BY embedding <=> query LIMIT top_k"]
+  SQL --> PG[(document_chunks + HNSW)]
+  PG --> CHUNKS[list of RetrievedChunk + score]
+  CHUNKS --> PROMPT[System + user prompt with sources]
+  PROMPT --> CHAT[OpenAI chat completion]
+  CHAT --> ANSWER[Answer text]
+  ANSWER --> PARSE[Regex extract S1 S2 citations]
+  PARSE --> OUT[QueryResponse: answer, citations, retrieved]
+```
+
+**Bounds:** The API clamps `top_k` between **1 and 50**. If nothing is in the index, generation returns a short message instead of calling the chat model with empty context.
+
+### Data model (database)
+
+- **`document_chunks`**: `chunk_id` (UUID PK), `doc_id`, `source_path`, `chunk_index`, `content`, `embedding vector(1536)`, `created_at`.
+- **Indexes:** B-tree on `doc_id` for deletes; **HNSW** on `embedding` with `vector_cosine_ops` for approximate nearest-neighbor search.
+
+### Evaluation path (separate from RAG DB)
+
+BEIR-style runs (`rag eval-beir`, `rag eval-scifact`) download a dataset, embed corpus and queries **in memory**, rank by cosine similarity, and score with official qrels—**they do not read `document_chunks`**. See [Benchmarks and results](#benchmarks-and-results).
 
 ## Prerequisites
 
