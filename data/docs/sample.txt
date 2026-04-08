@@ -1,0 +1,3 @@
+Plain text sample for ingestion testing.
+
+RAG stands for Retrieval-Augmented Generation. This file demonstrates TXT ingestion alongside Markdown and PDF support.

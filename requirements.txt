@@ -1,0 +1,14 @@
+# Optional: pip install -r requirements.txt
+# Prefer: pip install -e .
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+openai>=1.59.0
+psycopg[binary]>=3.2.0
+pgvector>=0.3.6
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+python-dotenv>=1.0.0
+pypdf>=5.1.0
+numpy>=2.0.0
+beir>=2.0.0
+tqdm>=4.67.0

@@ -1,0 +1,34 @@
+{
+  "dataset": "scifact",
+  "recall_at_k": {
+    "Recall@1": 0.62,
+    "Recall@3": 0.74,
+    "Recall@5": 0.79,
+    "Recall@10": 0.85
+  },
+  "ndcg_at_k": {
+    "NDCG@1": 0.58,
+    "NDCG@3": 0.68,
+    "NDCG@5": 0.72,
+    "NDCG@10": 0.76
+  },
+  "map_at_k": {
+    "MAP@1": 0.58,
+    "MAP@3": 0.63,
+    "MAP@5": 0.65,
+    "MAP@10": 0.66
+  },
+  "precision_at_k": {
+    "P@1": 0.62,
+    "P@3": 0.35,
+    "P@5": 0.24,
+    "P@10": 0.14
+  },
+  "mrr": 0.71,
+  "num_queries": 300,
+  "notes": "Illustrative snapshot for README plots; run eval-beir to reproduce with your model.",
+  "extra": {
+    "corpus_size": 5183,
+    "data_path": "(example)"
+  }
+}

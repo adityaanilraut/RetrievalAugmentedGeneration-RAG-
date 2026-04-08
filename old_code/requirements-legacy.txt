@@ -1,0 +1,8 @@
+# Original notebook stack (LangChain + sentence-transformers + FAISS).
+# Install in a separate venv if you run old_code/rag.ipynb.
+langchain
+langchain-community
+sentence-transformers
+faiss-cpu
+beautifulsoup4
+langchain-groq

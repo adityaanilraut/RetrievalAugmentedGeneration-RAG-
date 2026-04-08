@@ -1,0 +1,34 @@
+{
+  "dataset": "fiqa",
+  "recall_at_k": {
+    "Recall@1": 0.28,
+    "Recall@3": 0.45,
+    "Recall@5": 0.52,
+    "Recall@10": 0.61
+  },
+  "ndcg_at_k": {
+    "NDCG@1": 0.31,
+    "NDCG@3": 0.38,
+    "NDCG@5": 0.42,
+    "NDCG@10": 0.46
+  },
+  "map_at_k": {
+    "MAP@1": 0.31,
+    "MAP@3": 0.35,
+    "MAP@5": 0.36,
+    "MAP@10": 0.37
+  },
+  "precision_at_k": {
+    "P@1": 0.28,
+    "P@3": 0.18,
+    "P@5": 0.14,
+    "P@10": 0.09
+  },
+  "mrr": 0.36,
+  "num_queries": 648,
+  "notes": "Illustrative snapshot for README plots; run eval-beir to reproduce with your model.",
+  "extra": {
+    "corpus_size": 57638,
+    "data_path": "(example)"
+  }
+}
